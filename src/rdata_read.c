@@ -328,8 +328,10 @@ static ssize_t read_st_lzma(rdata_ctx_t *ctx, void *buffer, size_t len) {
 static ssize_t read_st(rdata_ctx_t *ctx, void *buffer, size_t len) {
     ssize_t bytes_read = 0;
 
-    if (len == 0)
-        return 0;
+	if (len == 0) {
+		printf("length is 0\n");
+		return 0;
+	}
 
 #if HAVE_BZIP2
     if (ctx->bz_strm) {
@@ -353,12 +355,15 @@ static ssize_t read_st(rdata_ctx_t *ctx, void *buffer, size_t len) {
 #endif
     {
         bytes_read = ctx->io->read(buffer, len, ctx->io->io_ctx);
+		printf("in read_st: buffer is %s \n", (char*)buffer);
+		printf("or in read_st: buffer is %d \n", *((uint32_t*)buffer));
     }
 
     if (bytes_read > 0) {
         ctx->bytes_read += bytes_read;
     }
 
+	printf("bytes read: %d \n", bytes_read);
     return bytes_read;
 }
 
@@ -399,6 +404,7 @@ static rdata_error_t init_bz_stream(rdata_ctx_t *ctx) {
     int bytes_read = ctx->io->read(ctx->strm_buffer, STREAM_BUFFER_SIZE, ctx->io->io_ctx);
     if (bytes_read <= 0) {
         retval = RDATA_ERROR_READ;
+		printf("failed to read on line 405\n");
         goto cleanup;
     }
 
@@ -426,6 +432,7 @@ static rdata_error_t init_z_stream(rdata_ctx_t *ctx) {
     int bytes_read = ctx->io->read(ctx->strm_buffer, STREAM_BUFFER_SIZE, ctx->io->io_ctx);
     if (bytes_read <= 0) {
         retval = RDATA_ERROR_READ;
+		printf("failed to read on line 432\n");
         goto cleanup;
     }
 
@@ -453,6 +460,7 @@ static rdata_error_t init_lzma_stream(rdata_ctx_t *ctx) {
     int bytes_read = ctx->io->read(ctx->strm_buffer, STREAM_BUFFER_SIZE, ctx->io->io_ctx);
     if (bytes_read <= 0) {
         retval = RDATA_ERROR_READ;
+		printf("failed to read on line 461\n");
         goto cleanup;
     }
 
@@ -492,6 +500,7 @@ static rdata_error_t init_stream(rdata_ctx_t *ctx) {
     
     if (ctx->io->read(&header, sizeof(header), ctx->io->io_ctx) != sizeof(header)) {
         retval = RDATA_ERROR_READ;
+		printf("failed to read on line 501\n");
         goto cleanup;
     }
 
@@ -668,6 +677,7 @@ rdata_error_t rdata_parse(rdata_parser_t *parser, const char *filename, void *us
 
     char header_line[5];
     if (read_st(ctx, &header_line, sizeof(header_line)) != sizeof(header_line)) {
+		printf("failed to read on line 674\n");
         retval = RDATA_ERROR_READ;
         goto cleanup;
     }
@@ -678,6 +688,7 @@ rdata_error_t rdata_parse(rdata_parser_t *parser, const char *filename, void *us
     }
 
     if (read_st(ctx, &v2_header, sizeof(v2_header)) != sizeof(v2_header)) {
+		printf("failed to read on line 681\n");
         retval = RDATA_ERROR_READ;
         goto cleanup;
     }
@@ -689,15 +700,21 @@ rdata_error_t rdata_parse(rdata_parser_t *parser, const char *filename, void *us
     }
 
     if (is_rdata && v2_header.format_version != header_line[3] - '0') {
+		printf("failed to parse on line 703\n");
         retval = RDATA_ERROR_PARSE;
         goto cleanup;
     }
 
+	printf("format version: %d \n", v2_header.format_version);
+	printf("writer version: %d \n", v2_header.writer_version);
+	printf("reader version: %d \n", v2_header.reader_version);
+
     if (v2_header.format_version == 3) {
         char encoding[64];
         retval = read_character_string(encoding, sizeof(encoding), ctx);
-        if (retval != RDATA_OK)
-            goto cleanup;
+		if (retval != RDATA_OK)
+			goto cleanup;
+		printf("encoding: %s \n", encoding);
 
         if (strncmp("UTF-8", encoding, sizeof(encoding)) != 0) {
             if ((ctx->converter = iconv_open("UTF-8", encoding)) == (iconv_t)-1) {
@@ -709,8 +726,10 @@ rdata_error_t rdata_parse(rdata_parser_t *parser, const char *filename, void *us
     }
     
     if (is_rdata) {
+		printf("line 724\n");
         retval = read_environment(NULL, ctx);
     } else {
+		printf("line 727\n");
         retval = read_toplevel_object(NULL, NULL, ctx);
     }
     if (retval != RDATA_OK)
@@ -719,6 +738,7 @@ rdata_error_t rdata_parse(rdata_parser_t *parser, const char *filename, void *us
     char test;
     
     if (read_st(ctx, &test, 1) == 1) {
+		printf("failed to parse on line 735\n");
         retval = RDATA_ERROR_PARSE;
         goto cleanup;
     }
@@ -737,6 +757,13 @@ static rdata_error_t read_toplevel_object(const char *table_name, const char *ke
     
     if ((retval = read_sexptype_header(&sexptype_info, ctx)) != RDATA_OK)
         goto cleanup;
+
+	printf("sexptype header type is: %d \n", sexptype_info.header.type);
+	printf("sexptype header attribute is: %d \n", sexptype_info.header.attributes);
+	printf("sexptype header tag is: %d \n", sexptype_info.header.tag);
+	printf("sexptype attribute is: %d \n", sexptype_info.attributes);
+	printf("sexptype tag is: %d \n", sexptype_info.tag);
+	printf("sexptype ref is: %d \n", sexptype_info.ref);
 
     if (sexptype_info.header.type == RDATA_SEXPTYPE_REAL_VECTOR ||
             sexptype_info.header.type == RDATA_SEXPTYPE_INTEGER_VECTOR ||
@@ -775,6 +802,7 @@ static rdata_error_t read_toplevel_object(const char *table_name, const char *ke
     } else if (sexptype_info.header.type == RDATA_SEXPTYPE_GENERIC_VECTOR &&
             sexptype_info.header.object && sexptype_info.header.attributes) {
         if (table_name != NULL) {
+			printf("calling recursive_discard from line 787\n");
             retval = recursive_discard(sexptype_info.header, ctx);
         } else {
             if (ctx->table_handler) {
@@ -788,6 +816,7 @@ static rdata_error_t read_toplevel_object(const char *table_name, const char *ke
         if (retval != RDATA_OK)
             goto cleanup;
     } else {
+		printf("calling recursive_discard from line 800\n");
         if ((retval = recursive_discard(sexptype_info.header, ctx)) != RDATA_OK)
             goto cleanup;
     }
@@ -811,12 +840,14 @@ static rdata_error_t read_environment(const char *table_name, rdata_ctx_t *ctx) 
             break;
         
         if (sexptype_info.header.type != RDATA_SEXPTYPE_PAIRLIST) {
+			printf("calling recursive_discard from line 824\n");
             if ((retval = recursive_discard(sexptype_info.header, ctx)) != RDATA_OK)
                 goto cleanup;
             continue;
         }
         
         if ((key = atom_table_lookup(ctx->atom_table, sexptype_info.ref)) == NULL) {
+			printf("failed to parse on line 837\n");
             retval = RDATA_ERROR_PARSE;
             goto cleanup;
         }
@@ -834,8 +865,10 @@ static rdata_error_t read_sexptype_header(rdata_sexptype_info_t *header_info, rd
     uint32_t sexptype;
     rdata_sexptype_header_t header;
     rdata_error_t retval = RDATA_OK;
+	printf("inside read_sexptype_header\n");
     if (read_st(ctx, &sexptype, sizeof(sexptype)) != sizeof(sexptype)) {
         retval = RDATA_ERROR_READ;
+		printf("failed to read on line 848\n");
         goto cleanup;
     }
     if (ctx->machine_needs_byteswap)
@@ -848,6 +881,7 @@ static rdata_error_t read_sexptype_header(rdata_sexptype_info_t *header_info, rd
         if (header.attributes) {
             if (read_st(ctx, &attributes, sizeof(attributes)) != sizeof(attributes)) {
                 retval = RDATA_ERROR_READ;
+				printf("failed to read on line 861\n");
                 goto cleanup;
             }
             if (ctx->machine_needs_byteswap)
@@ -856,6 +890,7 @@ static rdata_error_t read_sexptype_header(rdata_sexptype_info_t *header_info, rd
         if (header.tag) {
             if (read_st(ctx, &tag, sizeof(tag)) != sizeof(tag)) {
                 retval = RDATA_ERROR_READ;
+				printf("failed to read on line 870\n");
                 goto cleanup;
             }
             if (ctx->machine_needs_byteswap)
@@ -869,6 +904,7 @@ static rdata_error_t read_sexptype_header(rdata_sexptype_info_t *header_info, rd
                 goto cleanup;
             
             if (key_info.header.type != RDATA_SEXPTYPE_CHARACTER_STRING) {
+				printf("failed to parse on line 894\n");
                 retval = RDATA_ERROR_PARSE;
                 goto cleanup;
             }
@@ -897,6 +933,7 @@ cleanup:
 static int handle_class_name(const char *buf, int i, void *ctx) {
     unsigned int *column_class = (unsigned int *)ctx;
     if (buf) {
+		printf("buf in handle_class_name is: %s \n", buf);
         if (strcmp(buf, "POSIXct") == 0) {
             *column_class |= RDATA_CLASS_POSIXCT;
         }
@@ -909,12 +946,14 @@ static int handle_class_name(const char *buf, int i, void *ctx) {
 
 static int handle_vector_attribute(char *key, rdata_sexptype_info_t val_info, rdata_ctx_t *ctx) {
     rdata_error_t retval = RDATA_OK;
+	printf("key in handle_vector_attribute is: %s \n", key);
     if (strcmp(key, "levels") == 0) {
         retval = read_string_vector(val_info.header.attributes, ctx->value_label_handler, ctx->user_ctx, ctx);
     } else if (strcmp(key, "class") == 0) {
         ctx->column_class = 0;
         retval = read_string_vector(val_info.header.attributes, &handle_class_name, &ctx->column_class, ctx);
     } else {
+		printf("calling recursive_discard from line 931\n");
         retval = recursive_discard(val_info.header, ctx);
     }
     return retval;
@@ -927,6 +966,7 @@ static rdata_error_t read_character_string(char *key, size_t keylen, rdata_ctx_t
     
     if (read_st(ctx, &length, sizeof(length)) != sizeof(length)) {
         retval = RDATA_ERROR_READ;
+		printf("failed to read on line 942\n");
         goto cleanup;
     }
     
@@ -939,6 +979,7 @@ static rdata_error_t read_character_string(char *key, size_t keylen, rdata_ctx_t
     }
 
     if (length < 0) {
+		printf("failed to parse on line 966\n");
         return RDATA_ERROR_PARSE;
     }
 
@@ -949,6 +990,7 @@ static rdata_error_t read_character_string(char *key, size_t keylen, rdata_ctx_t
 
     if (read_st(ctx, string, length) != length) {
         retval = RDATA_ERROR_READ;
+		printf("failed to read on line 965\n");
         goto cleanup;
     }
 
@@ -966,11 +1008,23 @@ cleanup:
 static int handle_data_frame_attribute(char *key, rdata_sexptype_info_t val_info, rdata_ctx_t *ctx) {
     rdata_error_t retval = RDATA_OK;
     
+	printf("inside handle_data_frame_attribute \n");
+	printf("key in handle_data_frame_attribute is: %s \n", key);
+	printf("type in handle_data_frame_attribute is: %d \n", val_info.header.type);
     if (strcmp(key, "names") == 0 && val_info.header.type == RDATA_SEXPTYPE_CHARACTER_VECTOR) {
         retval = read_string_vector(val_info.header.attributes, ctx->column_name_handler, ctx->user_ctx, ctx);
-    } else if (strcmp(key, "label.table") == 0) {
+    } else if (strcmp(key, "row.names") == 0) {
+		if (val_info.header.type == RDATA_SEXPTYPE_CHARACTER_VECTOR) {
+			retval = read_string_vector(val_info.header.attributes, ctx->column_name_handler, ctx->user_ctx, ctx);
+		}
+		else {
+			retval = read_value_vector(val_info.header, key, ctx);
+		}
+	} else if (strcmp(key, "label.table") == 0) {
+		printf("calling recursive_discard from line 986\n");
         retval = recursive_discard(val_info.header, ctx);
     } else {
+		printf("calling recursive_discard from line 990\n");
         retval = recursive_discard(val_info.header, ctx);
     }
     
@@ -994,12 +1048,14 @@ static rdata_error_t read_attributes(int (*handle_attribute)(char *key, rdata_se
         
         if (handle_attribute) {
             if ((key = atom_table_lookup(ctx->atom_table, pairlist_info.ref)) == NULL) {
+				printf("failed to parse on line 1026\n");
                 retval = RDATA_ERROR_PARSE;
                 goto cleanup;
             }
             if ((retval = handle_attribute(key, val_info, ctx)) != RDATA_OK)
                 goto cleanup;
         } else {
+			printf("calling recursive_discard from line 1017\n");
             if ((retval = recursive_discard(val_info.header, ctx)) != RDATA_OK)
                 goto cleanup;
         }
@@ -1019,7 +1075,7 @@ static rdata_error_t read_generic_list(int attributes, rdata_ctx_t *ctx) {
     int i;
     rdata_sexptype_info_t sexptype_info;
     
-    
+	printf("inside read_generic_list \n");
     if ((retval = read_length(&length, ctx)) != RDATA_OK)
         goto cleanup;
     
@@ -1063,6 +1119,7 @@ static rdata_error_t read_length(int32_t *outLength, rdata_ctx_t *ctx) {
     
     if (read_st(ctx, &length, sizeof(length)) != sizeof(length)) {
         retval = RDATA_ERROR_READ;
+		printf("failed to read on line 1080\n");
         goto cleanup;
     }
     
@@ -1097,6 +1154,7 @@ static rdata_error_t read_string_vector_n(int attributes, int32_t length,
             goto cleanup;
         
         if (info.header.type != RDATA_SEXPTYPE_CHARACTER_STRING) {
+			printf("failed to parse on line 1131\n");
             retval = RDATA_ERROR_PARSE;
             goto cleanup;
         }
@@ -1123,6 +1181,7 @@ static rdata_error_t read_string_vector_n(int attributes, int32_t length,
         if (string_length >= 0) {
             if (read_st(ctx, buffer, string_length) != string_length) {
                 retval = RDATA_ERROR_READ;
+				printf("failed to read on line 1141\n");
                 goto cleanup;
             }
             buffer[string_length] = '\0';
@@ -1197,6 +1256,7 @@ static rdata_error_t read_value_vector(rdata_sexptype_header_t header, const cha
             output_data_type = RDATA_TYPE_LOGICAL;
             break;
         default:
+			printf("failed to parse on line 1234\n");
             retval = RDATA_ERROR_PARSE;
             break;
     }
@@ -1216,6 +1276,7 @@ static rdata_error_t read_value_vector(rdata_sexptype_header_t header, const cha
     
     if (read_st(ctx, vals, buf_len) != buf_len) {
         retval = RDATA_ERROR_READ;
+		printf("failed to read on line 1235\n");
         goto cleanup;
     }
     
@@ -1279,6 +1340,7 @@ static rdata_error_t discard_vector(rdata_sexptype_header_t sexptype_header, siz
         if ((retval = read_sexptype_header(&temp_info, ctx)) != RDATA_OK)
             goto cleanup;
         
+		printf("calling recursive_discard from line 1307\n");
         retval = recursive_discard(temp_info.header, ctx);
     }
     
@@ -1312,6 +1374,7 @@ static rdata_error_t discard_pairlist(rdata_sexptype_header_t sexptype_header, r
                 /* value */
                 if ((error = read_sexptype_header(&temp_info, ctx)) != RDATA_OK)
                     return error;
+				printf("calling recursive_discard from line 1341\n");
                 if ((error = recursive_discard(temp_info.header, ctx)) != RDATA_OK)
                     return error;
                 
@@ -1323,6 +1386,7 @@ static rdata_error_t discard_pairlist(rdata_sexptype_header_t sexptype_header, r
             case RDATA_PSEUDO_SXP_NIL:
                 goto done;
             default:
+				printf("failed to parse on line 1364\n");
                 return RDATA_ERROR_PARSE;
         }
     }
@@ -1339,11 +1403,14 @@ static rdata_error_t recursive_discard(rdata_sexptype_header_t sexptype_header, 
     rdata_error_t error = 0;
     int i;
 
+	printf("header type: %d \n", sexptype_header.type);
+
     switch (sexptype_header.type) {
         case RDATA_SEXPTYPE_SYMBOL:
             if ((error = read_sexptype_header(&info, ctx)) != RDATA_OK)
                 goto cleanup;
             
+			printf("calling recursive_discard from line 1375\n");
             if ((error = recursive_discard(info.header, ctx)) != RDATA_OK)
                 goto cleanup;
             break;
@@ -1353,6 +1420,7 @@ static rdata_error_t recursive_discard(rdata_sexptype_header_t sexptype_header, 
             if ((error = read_sexptype_header(&info, ctx)) != RDATA_OK)
                 goto cleanup;
             
+			printf("calling recursive_discard from line 1386\n");
             if ((error = recursive_discard(info.header, ctx)) != RDATA_OK)
                 goto cleanup;
             break;
@@ -1385,6 +1453,7 @@ static rdata_error_t recursive_discard(rdata_sexptype_header_t sexptype_header, 
         case RDATA_SEXPTYPE_GENERIC_VECTOR:
         case RDATA_SEXPTYPE_EXPRESSION_VECTOR:
             if (read_st(ctx, &length, sizeof(length)) != sizeof(length)) {
+				printf("failed to read on line 1405\n");
                 return RDATA_ERROR_READ;
             }
             if (ctx->machine_needs_byteswap)
@@ -1396,6 +1465,7 @@ static rdata_error_t recursive_discard(rdata_sexptype_header_t sexptype_header, 
 
                 if (sexptype_header.type == RDATA_SEXPTYPE_CHARACTER_VECTOR) {
                     if (info.header.type != RDATA_SEXPTYPE_CHARACTER_STRING) {
+						printf("failed to parse on line 1442\n");
                         error = RDATA_ERROR_PARSE;
                         goto cleanup;
                     }
@@ -1485,6 +1555,7 @@ static rdata_error_t recursive_discard(rdata_sexptype_header_t sexptype_header, 
         case RDATA_PSEUDO_SXP_BASE_ENVIRONMENT:
             break;
         default:
+			printf("failed to read on line 1506\n");
             return RDATA_ERROR_READ;
     }
 cleanup:
