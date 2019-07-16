@@ -952,7 +952,15 @@ static int handle_vector_attribute(char *key, rdata_sexptype_info_t val_info, rd
     } else if (strcmp(key, "class") == 0) {
         ctx->column_class = 0;
         retval = read_string_vector(val_info.header.attributes, &handle_class_name, &ctx->column_class, ctx);
-    } else {
+	} else if (strcmp(key, "dim") == 0) {
+		printf("dim type in handle_vector_attribute is: %d \n", val_info.header.type);
+		retval = read_value_vector(val_info.header, key, ctx);
+	} else if (strcmp(key, "dimnames") == 0) {
+		printf("dimnames type in handle_vector_attribute is: %d \n", val_info.header.type);
+		retval = read_generic_list(val_info.header.attributes, ctx);
+	} else {
+		// euro: names
+		// matrix: dim, dimnames
 		printf("calling recursive_discard from line 931\n");
         retval = recursive_discard(val_info.header, ctx);
     }
@@ -1013,13 +1021,8 @@ static int handle_data_frame_attribute(char *key, rdata_sexptype_info_t val_info
 	printf("type in handle_data_frame_attribute is: %d \n", val_info.header.type);
     if (strcmp(key, "names") == 0 && val_info.header.type == RDATA_SEXPTYPE_CHARACTER_VECTOR) {
         retval = read_string_vector(val_info.header.attributes, ctx->column_name_handler, ctx->user_ctx, ctx);
-    } else if (strcmp(key, "row.names") == 0) {
-		if (val_info.header.type == RDATA_SEXPTYPE_CHARACTER_VECTOR) {
-			retval = read_string_vector(val_info.header.attributes, ctx->column_name_handler, ctx->user_ctx, ctx);
-		}
-		else {
-			retval = read_value_vector(val_info.header, key, ctx);
-		}
+    } else if (strcmp(key, "row.names") == 0 && val_info.header.type == RDATA_SEXPTYPE_CHARACTER_VECTOR) {
+		retval = read_string_vector(val_info.header.attributes, ctx->column_name_handler, ctx->user_ctx, ctx);
 	} else if (strcmp(key, "label.table") == 0) {
 		printf("calling recursive_discard from line 986\n");
         retval = recursive_discard(val_info.header, ctx);
