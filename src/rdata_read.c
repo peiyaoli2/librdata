@@ -910,6 +910,7 @@ cleanup:
 static int handle_class_name(const char *buf, int i, void *ctx) {
     unsigned int *column_class = (unsigned int *)ctx;
     if (buf) {
+        printf("buf in handle_class_name is: %s \n", buf);
         if (strcmp(buf, "POSIXct") == 0) {
             *column_class |= RDATA_CLASS_POSIXCT;
         }
@@ -922,6 +923,9 @@ static int handle_class_name(const char *buf, int i, void *ctx) {
 
 static int handle_vector_attribute(char *key, rdata_sexptype_info_t val_info, rdata_ctx_t *ctx) {
     rdata_error_t retval = RDATA_OK;
+
+    if (key)
+        printf("key in handle_vector_attribute is: %s \n", key);
     if (strcmp(key, "levels") == 0) {
         retval = read_string_vector(val_info.header.attributes, ctx->value_label_handler, ctx->user_ctx, ctx);
     } else if (strcmp(key, "class") == 0) {
@@ -975,6 +979,9 @@ static rdata_error_t read_character_string(char *key, size_t keylen, rdata_ctx_t
     if (retval != RDATA_OK)
         goto cleanup;
     
+    if (key)
+        printf("key in read_character_string is: %s \n", key);
+    
 cleanup:
     if (string)
         free(string);
@@ -984,11 +991,17 @@ cleanup:
 
 static int handle_data_frame_attribute(char *key, rdata_sexptype_info_t val_info, rdata_ctx_t *ctx) {
     rdata_error_t retval = RDATA_OK;
+
+    if (key)
+        printf("key in handle_data_frame_attribute is: %s \n", key);
     
     if (strcmp(key, "names") == 0 && val_info.header.type == RDATA_SEXPTYPE_CHARACTER_VECTOR) {
         retval = read_string_vector(val_info.header.attributes, ctx->column_name_handler, ctx->user_ctx, ctx);
     } else if (strcmp(key, "row.names") == 0 && val_info.header.type == RDATA_SEXPTYPE_CHARACTER_VECTOR) {
         retval = read_string_vector(val_info.header.attributes, ctx->row_name_handler, ctx->user_ctx, ctx);
+    } else if (strcmp(key, "class") == 0) {
+        ctx->column_class = 0;
+        retval = read_string_vector(val_info.header.attributes, &handle_class_name, &ctx->column_class, ctx);
     } else if (strcmp(key, "label.table") == 0) {
         retval = recursive_discard(val_info.header, ctx);
     } else {
