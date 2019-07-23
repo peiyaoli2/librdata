@@ -1,4 +1,11 @@
 
+#ifndef INCLUDE_RDATA_H
+#define INCLUDE_RDATA_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 #include <sys/types.h>
 #include <stdio.h>
@@ -46,7 +53,10 @@ typedef int (*rdata_column_name_handler)(const char *value, int index, void *ctx
 typedef void (*rdata_error_handler)(const char *error_message, void *ctx);
 typedef int (*rdata_progress_handler)(double progress, void *ctx);
 
-#if defined _WIN32 || defined __CYGWIN__
+#ifdef _MSC_VER
+typedef off_t rdata_off_t;
+typedef __int64 ssize_t;
+#elif defined _WIN32 || defined __CYGWIN__
 typedef _off64_t rdata_off_t;
 #elif defined _AIX
 typedef off64_t rdata_off_t;
@@ -166,3 +176,8 @@ rdata_error_t rdata_end_column(rdata_writer_t *writer, rdata_column_t *column);
 rdata_error_t rdata_end_table(rdata_writer_t *writer, int32_t row_count, const char *datalabel);
 rdata_error_t rdata_end_file(rdata_writer_t *writer);
 
+#ifdef __cplusplus
+}
+#endif
+
+#endif
